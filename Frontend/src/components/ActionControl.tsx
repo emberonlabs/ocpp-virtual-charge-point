@@ -58,65 +58,65 @@ export const ActionControl: React.FC = () => {
         Charge Point Controls
       </div>
       
-      <div className="form-group" style={{ flexDirection: 'row', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '150px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>RFID Tag ID</label>
           <input 
             type="text" 
             className="form-control" 
+            style={{ width: '90%', padding: '0.5rem' }}
             value={tagId} 
             onChange={e => setTagId(e.target.value)}
-            style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
-        <div style={{ flex: 1, minWidth: '150px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Connector ID</label>
           <input 
             type="number" 
             className="form-control" 
+            style={{ width: '90%', padding: '0.5rem' }}
             value={connectorId} 
             onChange={e => setConnectorId(Number(e.target.value))}
-            style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
-        <div style={{ flex: 1, minWidth: '150px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Target Energy (kWh)</label>
           <input 
             type="number" 
             className="form-control" 
+            style={{ width: '90%', padding: '0.5rem' }}
             value={targetEnergyKwh} 
             onChange={e => setTargetEnergyKwh(Number(e.target.value))}
-            style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
-        <div style={{ flex: 1, minWidth: '150px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Duration (Seconds)</label>
           <input 
             type="number" 
             className="form-control" 
+            style={{ width: '90%', padding: '0.5rem' }}
             value={durationSeconds} 
             onChange={e => setDurationSeconds(Number(e.target.value))}
-            style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
-        <div style={{ flex: 1, minWidth: '150px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Initial SOC (%)</label>
           <input 
             type="number" 
             className="form-control" 
+            style={{ width: '90%', padding: '0.5rem' }}
             value={initialSoC} 
             onChange={e => setInitialSoC(Number(e.target.value))}
-            style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
-        <div style={{ flex: 1, minWidth: '150px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Target SOC (%)</label>
           <input 
             type="number" 
             className="form-control" 
+            style={{ width: '90%', padding: '0.5rem' }}
             value={targetSoC} 
             onChange={e => setTargetSoC(Number(e.target.value))}
-            style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
       </div>

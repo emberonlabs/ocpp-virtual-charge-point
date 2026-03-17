@@ -164,6 +164,7 @@ body {
 }
 
 .form-control {
+  width: 100%;
   background: rgba(15, 23, 42, 0.5);
   border: 1px solid var(--panel-border);
   color: var(--text-primary);
