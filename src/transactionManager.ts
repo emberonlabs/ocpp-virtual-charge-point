@@ -107,6 +107,16 @@ export class TransactionManager {
                 status: "Finishing"
               })
             );
+            // Auto-transition back to Available after 3 seconds
+            setTimeout(() => {
+              vcp.send(
+                statusNotificationOcppMessage.request({
+                  connectorId: startTransactionProps.connectorId,
+                  errorCode: "NoError",
+                  status: "Available"
+                })
+              );
+            }, 3000);
           });
         });
       }
@@ -120,6 +130,18 @@ export class TransactionManager {
       evseId: startTransactionProps.evseId,
       connectorId: startTransactionProps.connectorId,
       meterValuesTimer: meterValuesTimer,
+    });
+
+    // Send the Charging status immediately
+    import("./v16/messages/statusNotification").then(({ statusNotificationOcppMessage }) => {
+      console.log(`[TransactionManager] Setting connector ${startTransactionProps.connectorId} to Charging`);
+      vcp.send(
+        statusNotificationOcppMessage.request({
+          connectorId: startTransactionProps.connectorId,
+          errorCode: "NoError",
+          status: "Charging"
+        })
+      );
     });
   }
 
