@@ -4,6 +4,7 @@ import { WebSocket } from "ws";
 import { serve, type ServerType } from "@hono/node-server";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { z } from "zod";
 import { logger } from "./logger";
 import { call } from "./messageFactory";
@@ -56,7 +57,9 @@ export class VCP {
     this.messageHandler = resolveMessageHandler(vcpOptions.ocppVersion);
     if (vcpOptions.adminPort) {
       const adminApi = new Hono();
+      adminApi.use("/*", cors());
       adminApi.get("/health", (c) => c.text("OK"));
+      adminApi.get("/logs", async (c) => c.json(await this.getDiagnosticData()));
       adminApi.post(
         "/execute",
         zValidator(
