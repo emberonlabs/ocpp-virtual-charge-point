@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL ?? 'http://localhost:9999';
+const ADMIN_API_URL = (import.meta.env.VITE_ADMIN_API_URL as string) ?? 'http://localhost:9999';
 
 export interface LogEntry {
   type: string;
@@ -26,14 +26,9 @@ export interface VCPStatus {
   isConnected: boolean;
 }
 
-export const fetchStatus = async (): Promise<VCPStatus | null> => {
-  try {
-    const response = await axios.get(`${ADMIN_API_URL}/status`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching status:', error);
-    return null;
-  }
+export const fetchStatus = async (): Promise<VCPStatus> => {
+  const response = await axios.get(`${ADMIN_API_URL}/status`);
+  return response.data;
 };
 
 export const fetchLogs = async (): Promise<LogEntry[]> => {
@@ -50,7 +45,10 @@ export const fetchActiveTransactions = async (): Promise<ActiveTransaction[]> =>
   return response.data;
 };
 
-export const executeOcppAction = async (action: string, payload: Record<string, unknown>) => {
-  const response = await axios.post(`${ADMIN_API_URL}/execute`, { action, payload });
+export const executeOcppAction = async (action: string, payload: Record<string, unknown>): Promise<unknown> => {
+  const response = await axios.post(`${ADMIN_API_URL}/execute`, {
+    action,
+    payload
+  });
   return response.data;
 };

@@ -1,11 +1,18 @@
 import { createLogger, format, transports, Transport } from "winston";
 
+export interface LogInfo {
+  timestamp: string;
+  level: string;
+  message: string;
+  [key: string]: unknown;
+}
+
 // A simple in-memory array to store the last 100 logs
-export let logBuffer: any[] = [];
+export let logBuffer: LogInfo[] = [];
 
 // Custom transport to handle our memory buffer
 class MemoryTransport extends Transport {
-  log(info: any, callback: () => void) {
+  log(info: LogInfo, callback: () => void) {
     setImmediate(() => {
       this.emit('logged', info);
     });
@@ -23,7 +30,7 @@ class MemoryTransport extends Transport {
 
 export const clearLogBuffer = () => {
   console.log("🧹 Backend: Clearing log buffer...");
-  logBuffer.splice(0, logBuffer.length);
+  logBuffer = [];
 };
 
 export const logger = createLogger({

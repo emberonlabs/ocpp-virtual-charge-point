@@ -11,8 +11,12 @@ function App() {
 
   useEffect(() => {
     const check = async () => {
-      const status = await fetchStatus();
-      setAdminApiReachable(status !== null);
+      try {
+        const status = await fetchStatus();
+        setAdminApiReachable(!!status);
+      } catch (e) {
+        setAdminApiReachable(false);
+      }
     };
     check();
     const interval = setInterval(check, 5000);

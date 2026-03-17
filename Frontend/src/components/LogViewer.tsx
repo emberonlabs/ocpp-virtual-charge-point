@@ -1,27 +1,53 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Terminal, Trash2 } from 'lucide-react';
+import { Terminal, Trash2, AlertCircle } from 'lucide-react';
 import { fetchLogs, clearLogs, type LogEntry } from '../services/api';
 import { useToast } from './Toast';
 
 export const LogViewer: React.FC = () => {
-  const { showError } = useToast();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [isTabVisible, setIsTabVisible] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const lastLogRef = useRef<string>('');
+  const { showError } = useToast();
+
+  // Track tab visibility
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(document.visibilityState === 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
-    // Poll the logs endpoint every 500ms for real-time feel
+    if (!isTabVisible) return;
+
     const interval = setInterval(async () => {
       try {
         const newLogs = await fetchLogs();
+        
+        // Skip re-render if logs haven't changed
+        if (newLogs.length === logs.length) {
+          const newLastLog = newLogs.length > 0 ? `${newLogs[newLogs.length - 1].timestamp}-${newLogs[newLogs.length - 1].message}` : '';
+          if (newLastLog === lastLogRef.current) return;
+        }
+
+        if (newLogs.length > 0) {
+          lastLogRef.current = `${newLogs[newLogs.length - 1].timestamp}-${newLogs[newLogs.length - 1].message}`;
+        } else {
+          lastLogRef.current = '';
+        }
+        
         setLogs(newLogs);
-      } catch {
-        // silently skip — connection lost is reported by ActionControl's status poll
+      } catch (error) {
+        // We don't toast on every poll failure to avoid spam, just log to console
+        console.error("Failed to fetch logs:", error);
       }
     }, 500);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isTabVisible, logs.length]);
 
   // auto scroll to bottom
   useEffect(() => {
@@ -34,8 +60,9 @@ export const LogViewer: React.FC = () => {
     try {
       await clearLogs();
       setLogs([]);
-    } catch {
-      showError('Failed to clear logs');
+      lastLogRef.current = '';
+    } catch (e) {
+      showError('Failed to clear terminal logs');
     }
   };
 
@@ -65,6 +92,21 @@ export const LogViewer: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Terminal className="w-5 h-5" />
           Real-time Protocol Terminal
+          {logs.length >= 100 && (
+            <span style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.25rem', 
+              fontSize: '0.65rem', 
+              color: 'var(--text-secondary)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              padding: '0.1rem 0.4rem',
+              borderRadius: '4px',
+              marginLeft: '0.5rem'
+            }} title="The buffer is limited to the last 100 entries to maintain performance.">
+              <AlertCircle className="w-3 h-3" /> Buffer Full
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button 
@@ -113,7 +155,7 @@ export const LogViewer: React.FC = () => {
       <div className="log-terminal" ref={terminalRef} style={{ flex: 1 }}>
         {logs.map((log, i) => (
           <div key={i} className="log-entry">
-            <span className="log-time" title={log.timestamp}>
+            <span className="log-time">
               {log.timestamp.split(' ')[1]}
             </span>
             <span className={`log-${log.level}`}>[{log.level.toUpperCase()}]</span>
