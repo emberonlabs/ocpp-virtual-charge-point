@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Power, Activity, ShieldCheck, Zap, XSquare, Settings2, ChevronDown, ChevronUp, Globe, Cpu } from 'lucide-react';
 import { executeOcppAction, fetchActiveTransactions, fetchStatus, type ActiveTransaction } from '../services/api';
+import { useToast } from './Toast';
 
 export const ActionControl: React.FC = () => {
+  const { showError, showSuccess } = useToast();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [tagId, setTagId] = useState('DEADBEEF');
   const [connectorId, setConnectorId] = useState(1);
-  
+
   // CMS Configuration
   const [wsUrl, setWsUrl] = useState('ws://localhost:3000');
   const [cpId, setCpId] = useState('123456');
   const [cmsExpanded, setCmsExpanded] = useState(false);
   const [controlsExpanded, setControlsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const prevIsConnected = useRef<boolean | null>(null);
 
   // Power simulation parameters
   const [targetEnergyKwh, setTargetEnergyKwh] = useState<number>(50);
@@ -39,38 +42,69 @@ export const ActionControl: React.FC = () => {
   // Use an interval to poll the real active transactions and status from the VCP
   useEffect(() => {
     const interval = setInterval(async () => {
-      const txs = await fetchActiveTransactions();
-      const currentTx = txs.find(t => t.connectorId === connectorId);
-      setActiveTx(currentTx);
-      
+      try {
+        const txs = await fetchActiveTransactions();
+        const currentTx = txs.find(t => t.connectorId === connectorId);
+        setActiveTx(currentTx);
+      } catch {
+        // transaction fetch failing is covered by the status check below
+      }
+
       const status = await fetchStatus();
       if (status) {
-        setIsConnected(status.isConnected);
+        const nowConnected = status.isConnected;
+        if (prevIsConnected.current === true && !nowConnected) {
+          showError('Charge point disconnected from CMS');
+        } else if (prevIsConnected.current === false && nowConnected) {
+          showSuccess('Charge point connected to CMS');
+        }
+        prevIsConnected.current = nowConnected;
+        setIsConnected(nowConnected);
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [connectorId]);
+  }, [connectorId, showError, showSuccess]);
 
   // Calculate simulated speed: (kWh / (seconds / 3600)) = kW
   const simulatedKw = durationSeconds > 0 ? (targetEnergyKwh / (durationSeconds / 3600)).toFixed(1) : "0";
+
+  // Derived validation errors — no state needed, computed on every render
+  const errors = {
+    wsUrl: !/^wss?:\/\//.test(wsUrl) ? 'Must start with ws:// or wss://' : '',
+    cpId: cpId.trim() === '' ? 'Required' : /\s/.test(cpId) ? 'No spaces allowed' : '',
+    tagId: tagId.trim() === '' ? 'Required' : !/^[a-zA-Z0-9\-]+$/.test(tagId) ? 'Alphanumeric and hyphens only' : '',
+    connectorId: !Number.isInteger(connectorId) || connectorId < 1 ? 'Must be an integer ≥ 1' : '',
+    targetEnergyKwh: targetEnergyKwh <= 0 ? 'Must be > 0' : '',
+    durationSeconds: durationSeconds <= 0 ? 'Must be > 0' : '',
+    initialSoC: initialSoC < 0 || initialSoC > 100 ? 'Must be 0–100' : '',
+    targetSoC: targetSoC > 100 ? 'Must be ≤ 100' : targetSoC <= initialSoC ? 'Must be > Initial SOC' : '',
+  };
+
+  const cmsConfigInvalid = !!(errors.wsUrl || errors.cpId);
+  const txParamsInvalid = !!(errors.tagId || errors.connectorId || errors.targetEnergyKwh || errors.durationSeconds || errors.initialSoC || errors.targetSoC);
 
   const handleAction = async (action: string, payload: Record<string, unknown>) => {
     setLoadingAction(action);
     try {
       if (action === "StartTransaction") {
-         // Configure the simulator before starting
-         await executeOcppAction("UpdateSimulationConfig", {
-           targetEnergy: targetEnergyKwh,
-           durationSeconds: durationSeconds,
-           initialSoC: initialSoC,
-           targetSoC: targetSoC
-         });
-         const tempTxId = Math.floor(Math.random() * 100000); // Temporary ID until we poll and get the real CS one
-         payload.transactionId = tempTxId;
+        // Configure the simulator before starting
+        await executeOcppAction("UpdateSimulationConfig", {
+          targetEnergy: targetEnergyKwh,
+          durationSeconds: durationSeconds,
+          initialSoC: initialSoC,
+          targetSoC: targetSoC
+        });
       }
-      await executeOcppAction(action, payload);
-    } catch (e) {
-      console.error(e);
+      const result = await executeOcppAction(action, payload);
+      if (action === "UpdateCMSConfig") {
+        showSuccess(`Reconnected to ${wsUrl}`);
+      } else if (action !== "UpdateSimulationConfig") {
+        showSuccess(`${action} sent`);
+      }
+      return result;
+    } catch (e: unknown) {
+      const detail = e instanceof Error ? e.message : String(e);
+      showError(`${action} failed: ${detail}`);
     } finally {
       setLoadingAction(null);
     }
@@ -107,34 +141,36 @@ export const ActionControl: React.FC = () => {
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <Globe className="w-3 h-3" /> Central System URL
               </label>
-              <input 
-                type="text" 
-                className="form-control" 
+              <input
+                type="text"
+                className={`form-control${errors.wsUrl ? ' invalid' : ''}`}
                 style={{ width: '100%', padding: '0.5rem' }}
-                value={wsUrl} 
+                value={wsUrl}
                 onChange={e => setWsUrl(e.target.value)}
                 placeholder="ws://localhost:3000"
               />
+              {errors.wsUrl && <span className="field-error">{errors.wsUrl}</span>}
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <Cpu className="w-3 h-3" /> Charge Point ID
               </label>
-              <input 
-                type="text" 
-                className="form-control" 
+              <input
+                type="text"
+                className={`form-control${errors.cpId ? ' invalid' : ''}`}
                 style={{ width: '100%', padding: '0.5rem' }}
-                value={cpId} 
+                value={cpId}
                 onChange={e => setCpId(e.target.value)}
               />
+              {errors.cpId && <span className="field-error">{errors.cpId}</span>}
             </div>
-            <button 
+            <button
               className="btn btn-primary"
               style={{ width: '100%', marginTop: '0.5rem' }}
-              disabled={loadingAction === 'UpdateCMSConfig'}
+              disabled={loadingAction === 'UpdateCMSConfig' || cmsConfigInvalid}
               onClick={() => handleAction('UpdateCMSConfig', { endpoint: wsUrl, chargePointId: cpId })}
             >
-              {loadingAction === 'UpdateCMSConfig' ? 'Connecting...' : 'Save & Reconnect'}
+              {loadingAction === 'UpdateCMSConfig' ? <><span className="spinner" /> Connecting...</> : 'Save & Reconnect'}
             </button>
           </div>
         )}
@@ -169,63 +205,81 @@ export const ActionControl: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>RFID Tag ID</label>
-              <input 
-                type="text" 
-                className="form-control" 
+              <input
+                type="text"
+                className={`form-control${errors.tagId ? ' invalid' : ''}`}
                 style={{ width: '90%', padding: '0.5rem' }}
-                value={tagId} 
+                value={tagId}
                 onChange={e => setTagId(e.target.value)}
               />
+              {errors.tagId && <span className="field-error">{errors.tagId}</span>}
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Connector ID</label>
-              <input 
-                type="number" 
-                className="form-control" 
+              <input
+                type="number"
+                className={`form-control${errors.connectorId ? ' invalid' : ''}`}
                 style={{ width: '90%', padding: '0.5rem' }}
-                value={connectorId} 
+                value={connectorId}
+                min={1}
+                step={1}
                 onChange={e => setConnectorId(Number(e.target.value))}
               />
+              {errors.connectorId && <span className="field-error">{errors.connectorId}</span>}
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Target Energy (kWh)</label>
-              <input 
-                type="number" 
-                className="form-control" 
+              <input
+                type="number"
+                className={`form-control${errors.targetEnergyKwh ? ' invalid' : ''}`}
                 style={{ width: '90%', padding: '0.5rem' }}
-                value={targetEnergyKwh} 
+                value={targetEnergyKwh}
+                min={0.1}
+                step={0.1}
                 onChange={e => setTargetEnergyKwh(Number(e.target.value))}
               />
+              {errors.targetEnergyKwh && <span className="field-error">{errors.targetEnergyKwh}</span>}
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Duration (Seconds)</label>
-              <input 
-                type="number" 
-                className="form-control" 
+              <input
+                type="number"
+                className={`form-control${errors.durationSeconds ? ' invalid' : ''}`}
                 style={{ width: '90%', padding: '0.5rem' }}
-                value={durationSeconds} 
+                value={durationSeconds}
+                min={1}
+                step={1}
                 onChange={e => setDurationSeconds(Number(e.target.value))}
               />
+              {errors.durationSeconds && <span className="field-error">{errors.durationSeconds}</span>}
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Initial SOC (%)</label>
-              <input 
-                type="number" 
-                className="form-control" 
+              <input
+                type="number"
+                className={`form-control${errors.initialSoC ? ' invalid' : ''}`}
                 style={{ width: '90%', padding: '0.5rem' }}
-                value={initialSoC} 
+                value={initialSoC}
+                min={0}
+                max={99}
+                step={1}
                 onChange={e => setInitialSoC(Number(e.target.value))}
               />
+              {errors.initialSoC && <span className="field-error">{errors.initialSoC}</span>}
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Target SOC (%)</label>
-              <input 
-                type="number" 
-                className="form-control" 
+              <input
+                type="number"
+                className={`form-control${errors.targetSoC ? ' invalid' : ''}`}
                 style={{ width: '90%', padding: '0.5rem' }}
-                value={targetSoC} 
+                value={targetSoC}
+                min={1}
+                max={100}
+                step={1}
                 onChange={e => setTargetSoC(Number(e.target.value))}
               />
+              {errors.targetSoC && <span className="field-error">{errors.targetSoC}</span>}
             </div>
           </div>
 
@@ -262,7 +316,7 @@ export const ActionControl: React.FC = () => {
       )}
 
       <div className="action-grid" style={{ marginTop: controlsExpanded ? 0 : '1rem' }}>
-        <button 
+        <button
           className="btn btn-primary"
           disabled={loadingAction === 'BootNotification'}
           onClick={() => handleAction('BootNotification', {
@@ -272,31 +326,31 @@ export const ActionControl: React.FC = () => {
             firmwareVersion: "1.0.0"
           })}
         >
-          <Power className="w-4 h-4" />
+          {loadingAction === 'BootNotification' ? <span className="spinner" /> : <Power className="w-4 h-4" />}
           Send Boot Notification
         </button>
 
-        <button 
+        <button
           className="btn btn-primary"
           disabled={loadingAction === 'Heartbeat'}
           onClick={() => handleAction('Heartbeat', {})}
         >
-          <Activity className="w-4 h-4" />
+          {loadingAction === 'Heartbeat' ? <span className="spinner" /> : <Activity className="w-4 h-4" />}
           Send Heartbeat
         </button>
 
-        <button 
+        <button
           className="btn btn-primary"
-          disabled={loadingAction === 'Authorize'}
+          disabled={loadingAction === 'Authorize' || !!(errors.tagId)}
           onClick={() => handleAction('Authorize', { idTag: tagId })}
         >
-          <ShieldCheck className="w-4 h-4" />
+          {loadingAction === 'Authorize' ? <span className="spinner" /> : <ShieldCheck className="w-4 h-4" />}
           Verify RFID (Authorize)
         </button>
 
-        <button 
+        <button
           className="btn btn-primary"
-          disabled={loadingAction === 'StartTransaction'}
+          disabled={loadingAction === 'StartTransaction' || txParamsInvalid}
           onClick={() => handleAction('StartTransaction', {
             connectorId,
             idTag: tagId,
@@ -304,36 +358,36 @@ export const ActionControl: React.FC = () => {
             timestamp: new Date().toISOString()
           })}
         >
-          <Zap className="w-4 h-4" />
+          {loadingAction === 'StartTransaction' ? <span className="spinner" /> : <Zap className="w-4 h-4" />}
           Start Transaction
         </button>
 
-        <button 
+        <button
           className="btn btn-primary"
-          disabled={loadingAction === 'StatusNotification'}
+          disabled={loadingAction === 'StatusNotification' || !!(errors.connectorId)}
           onClick={() => handleAction('StatusNotification', {
             connectorId,
             errorCode: "NoError",
             status: "Charging"
           })}
         >
-          <Zap className="w-4 h-4" />
+          {loadingAction === 'StatusNotification' ? <span className="spinner" /> : <Zap className="w-4 h-4" />}
           Set Charging Status
         </button>
 
-        <button 
+        <button
           className="btn btn-danger"
-          disabled={loadingAction === 'StopTransaction' || !activeTx}
+          disabled={loadingAction === 'StopTransaction' || !activeTx || !!(errors.tagId)}
           onClick={() => {
             handleAction('StopTransaction', {
-              transactionId: activeTx?.transactionId || 0,
+              transactionId: activeTx!.transactionId,
               idTag: tagId,
-              meterStop: activeTx ? Math.floor(activeTx.meterValue) : 100,
+              meterStop: Math.floor(activeTx!.meterValue),
               timestamp: new Date().toISOString()
             });
           }}
         >
-          <XSquare className="w-4 h-4" />
+          {loadingAction === 'StopTransaction' ? <span className="spinner" /> : <XSquare className="w-4 h-4" />}
           Stop Transaction
         </button>
       </div>

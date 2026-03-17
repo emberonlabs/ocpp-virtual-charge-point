@@ -1,24 +1,40 @@
-import { createLogger, format, transports } from "winston";
-
-export const memoryTransport = new transports.File({ 
-  filename: 'app.log',
-  options: { flags: 'w' }, // Overwrite on start
-  format: format.combine(
-    format.timestamp(),
-    format.json()
-  )
-});
+import { createLogger, format, transports, Transport } from "winston";
 
 // A simple in-memory array to store the last 100 logs
-export const logBuffer: any[] = [];
+export let logBuffer: any[] = [];
+
+// Custom transport to handle our memory buffer
+class MemoryTransport extends Transport {
+  log(info: any, callback: () => void) {
+    setImmediate(() => {
+      this.emit('logged', info);
+    });
+    
+    logBuffer.push(info);
+    if (logBuffer.length > 100) {
+      logBuffer.shift();
+    }
+    
+    if (callback) {
+      callback();
+    }
+  }
+}
+
+export const clearLogBuffer = () => {
+  console.log("🧹 Backend: Clearing log buffer...");
+  logBuffer.splice(0, logBuffer.length);
+};
 
 export const logger = createLogger({
+  format: format.combine(
+    format.timestamp({
+      format: "YYYY-MM-DD HH:mm:ss",
+    }),
+  ),
   transports: [
     new transports.Console({
       format: format.combine(
-        format.timestamp({
-          format: "YYYY-MM-DD HH:mm:ss",
-        }),
         format.colorize(),
         format.simple(),
         format.printf((info) => {
@@ -30,13 +46,6 @@ export const logger = createLogger({
       ),
       level: process.env.LOG_LEVEL ?? "info",
     }),
+    new MemoryTransport()
   ],
-});
-
-// Add a hook to store logs in our buffer
-logger.on('data', (chunk) => {
-  logBuffer.push(chunk);
-  if (logBuffer.length > 100) {
-    logBuffer.shift();
-  }
 });

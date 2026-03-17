@@ -6,7 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { logger, logBuffer } from "./logger";
+import { logger, logBuffer, clearLogBuffer } from "./logger";
 import { call } from "./messageFactory";
 import type { OcppCall, OcppCallError, OcppCallResult } from "./ocppMessage";
 import {
@@ -66,6 +66,10 @@ export class VCP {
         isConnected: this.ws?.readyState === WebSocket.OPEN
       }));
       adminApi.get("/logs", async (c) => c.json(await this.getDiagnosticData()));
+      adminApi.post("/logs/clear", (c) => {
+        clearLogBuffer();
+        return c.json({ status: "Logs Cleared" });
+      });
       adminApi.get("/transactions", (c) => c.json(this.transactionManager.getActiveTransactions()));
       adminApi.post(
         "/execute",
@@ -232,7 +236,7 @@ export class VCP {
   async getDiagnosticData(): Promise<LogEntry[]> {
     return logBuffer.map((info) => ({
       type: "Application",
-      timestamp: info.timestamp || new Date().toISOString(),
+      timestamp: info.timestamp,
       level: info.level,
       message: info.message,
       metadata: Object.fromEntries(

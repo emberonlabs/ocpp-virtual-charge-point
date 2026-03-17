@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Terminal } from 'lucide-react';
-import { fetchLogs, type LogEntry } from '../services/api';
+import { Terminal, Trash2 } from 'lucide-react';
+import { fetchLogs, clearLogs, type LogEntry } from '../services/api';
+import { useToast } from './Toast';
 
 export const LogViewer: React.FC = () => {
+  const { showError } = useToast();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -10,9 +12,11 @@ export const LogViewer: React.FC = () => {
   useEffect(() => {
     // Poll the logs endpoint every 500ms for real-time feel
     const interval = setInterval(async () => {
-      const newLogs = await fetchLogs();
-      if (newLogs.length > 0) {
+      try {
+        const newLogs = await fetchLogs();
         setLogs(newLogs);
+      } catch {
+        // silently skip — connection lost is reported by ActionControl's status poll
       }
     }, 500);
 
@@ -25,6 +29,15 @@ export const LogViewer: React.FC = () => {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [logs, autoScroll]);
+
+  const handleClearLogs = async () => {
+    try {
+      await clearLogs();
+      setLogs([]);
+    } catch {
+      showError('Failed to clear logs');
+    }
+  };
 
   const formatMessageLog = (rawMsg: string) => {
     // Aggressive ANSI escape code removal
@@ -53,32 +66,55 @@ export const LogViewer: React.FC = () => {
           <Terminal className="w-5 h-5" />
           Real-time Protocol Terminal
         </div>
-        <button 
-          onClick={() => setAutoScroll(!autoScroll)}
-          style={{
-            background: autoScroll ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-            border: `1px solid ${autoScroll ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-            color: autoScroll ? '#22c55e' : '#ef4444',
-            padding: '0.2rem 0.6rem',
-            borderRadius: '0.375rem',
-            fontSize: '0.7rem',
-            cursor: 'pointer',
-            fontWeight: '600',
-            textTransform: 'uppercase',
-            letterSpacing: '0.025em',
-            transition: 'all 0.2s',
-            zIndex: 10
-          }}
-        >
-          Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button 
+            onClick={handleClearLogs}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--panel-border)',
+              color: 'var(--text-secondary)',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.7rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              transition: 'all 0.2s'
+            }}
+            title="Clear Terminal"
+          >
+            <Trash2 className="w-3 h-3" /> Clear
+          </button>
+          <button 
+            onClick={() => setAutoScroll(!autoScroll)}
+            style={{
+              background: autoScroll ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              border: `1px solid ${autoScroll ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              color: autoScroll ? '#22c55e' : '#ef4444',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.7rem',
+              cursor: 'pointer',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.025em',
+              transition: 'all 0.2s',
+              zIndex: 10
+            }}
+          >
+            Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
+          </button>
+        </div>
       </div>
       
       <div className="log-terminal" ref={terminalRef} style={{ flex: 1 }}>
         {logs.map((log, i) => (
           <div key={i} className="log-entry">
-            <span className="log-time">
-              {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}
+            <span className="log-time" title={log.timestamp}>
+              {log.timestamp.split(' ')[1]}
             </span>
             <span className={`log-${log.level}`}>[{log.level.toUpperCase()}]</span>
             <span>{formatMessageLog(log.message)}</span>

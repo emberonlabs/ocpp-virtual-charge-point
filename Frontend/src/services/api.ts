@@ -1,13 +1,13 @@
 import axios from 'axios';
 
-const ADMIN_API_URL = 'http://localhost:9999';
+const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL ?? 'http://localhost:9999';
 
 export interface LogEntry {
   type: string;
   timestamp: string;
   level: string;
   message: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ActiveTransaction {
@@ -37,34 +37,20 @@ export const fetchStatus = async (): Promise<VCPStatus | null> => {
 };
 
 export const fetchLogs = async (): Promise<LogEntry[]> => {
-  try {
-    const response = await axios.get(`${ADMIN_API_URL}/logs`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    return [];
-  }
+  const response = await axios.get(`${ADMIN_API_URL}/logs`);
+  return response.data;
+};
+
+export const clearLogs = async (): Promise<void> => {
+  await axios.post(`${ADMIN_API_URL}/logs/clear`);
 };
 
 export const fetchActiveTransactions = async (): Promise<ActiveTransaction[]> => {
-  try {
-    const response = await axios.get(`${ADMIN_API_URL}/transactions`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    return [];
-  }
+  const response = await axios.get(`${ADMIN_API_URL}/transactions`);
+  return response.data;
 };
 
-export const executeOcppAction = async (action: string, payload: Record<string, any>) => {
-  try {
-    const response = await axios.post(`${ADMIN_API_URL}/execute`, {
-      action,
-      payload
-    });
-    return response.data;
-  } catch (error) {
-    console.error(`Error executing ${action}:`, error);
-    throw error;
-  }
+export const executeOcppAction = async (action: string, payload: Record<string, unknown>) => {
+  const response = await axios.post(`${ADMIN_API_URL}/execute`, { action, payload });
+  return response.data;
 };

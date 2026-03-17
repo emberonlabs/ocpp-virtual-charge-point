@@ -1,10 +1,26 @@
 
+import { useEffect, useState } from 'react';
 import { ActionControl } from './components/ActionControl';
 import { LogViewer } from './components/LogViewer';
+import { ToastProvider } from './components/Toast';
 import { Zap } from 'lucide-react';
+import { fetchStatus } from './services/api';
 
 function App() {
+  const [adminApiReachable, setAdminApiReachable] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      const status = await fetchStatus();
+      setAdminApiReachable(status !== null);
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
+    <ToastProvider>
     <div className="app-container">
       <div className="left-sidebar">
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
@@ -18,7 +34,9 @@ function App() {
             </div>
           </div>
           <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <span className="status-badge connected">● Admin API Active</span>
+            <span className={`status-badge ${adminApiReachable ? 'connected' : 'disconnected'}`}>
+              ● Admin API {adminApiReachable ? 'Active' : 'Unreachable'}
+            </span>
           </div>
         </div>
 
@@ -31,6 +49,7 @@ function App() {
         <LogViewer />
       </div>
     </div>
+    </ToastProvider>
   );
 }
 
