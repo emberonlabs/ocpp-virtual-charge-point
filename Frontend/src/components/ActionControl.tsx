@@ -141,7 +141,7 @@ export const ActionControl: React.FC = () => {
       </div>
 
       {/* Charge Point Controls Dropdown */}
-      <div className="panel-header" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
+      <div className="panel-header" style={{ borderBottom: '1px solid var(--panel-border)', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
         <button 
           onClick={() => setControlsExpanded(!controlsExpanded)}
           style={{
