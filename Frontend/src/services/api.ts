@@ -19,6 +19,23 @@ export interface ActiveTransaction {
   startedAt: string;
 }
 
+export interface VCPStatus {
+  endpoint: string;
+  chargePointId: string;
+  ocppVersion: string;
+  isConnected: boolean;
+}
+
+export const fetchStatus = async (): Promise<VCPStatus | null> => {
+  try {
+    const response = await axios.get(`${ADMIN_API_URL}/status`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching status:', error);
+    return null;
+  }
+};
+
 export const fetchLogs = async (): Promise<LogEntry[]> => {
   try {
     const response = await axios.get(`${ADMIN_API_URL}/logs`);

@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Power, Activity, ShieldCheck, Zap, XSquare, Settings2 } from 'lucide-react';
-import { executeOcppAction, fetchActiveTransactions, type ActiveTransaction } from '../services/api';
+import { Power, Activity, ShieldCheck, Zap, XSquare, Settings2, ChevronDown, ChevronUp, Globe, Cpu } from 'lucide-react';
+import { executeOcppAction, fetchActiveTransactions, fetchStatus, type ActiveTransaction } from '../services/api';
 
 export const ActionControl: React.FC = () => {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [tagId, setTagId] = useState('DEADBEEF');
   const [connectorId, setConnectorId] = useState(1);
   
+  // CMS Configuration
+  const [wsUrl, setWsUrl] = useState('ws://localhost:3000');
+  const [cpId, setCpId] = useState('123456');
+  const [cmsExpanded, setCmsExpanded] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+
   // Power simulation parameters
   const [targetEnergyKwh, setTargetEnergyKwh] = useState<number>(50);
   const [durationSeconds, setDurationSeconds] = useState<number>(60);
@@ -16,12 +22,30 @@ export const ActionControl: React.FC = () => {
   // Track true active transactions from the backend
   const [activeTx, setActiveTx] = useState<ActiveTransaction | undefined>();
 
-  // Use an interval to poll the real active transactions from the VCP
+  // Fetch initial status
+  useEffect(() => {
+    const getInitialStatus = async () => {
+      const status = await fetchStatus();
+      if (status) {
+        setWsUrl(status.endpoint);
+        setCpId(status.chargePointId);
+        setIsConnected(status.isConnected);
+      }
+    };
+    getInitialStatus();
+  }, []);
+
+  // Use an interval to poll the real active transactions and status from the VCP
   useEffect(() => {
     const interval = setInterval(async () => {
       const txs = await fetchActiveTransactions();
       const currentTx = txs.find(t => t.connectorId === connectorId);
       setActiveTx(currentTx);
+      
+      const status = await fetchStatus();
+      if (status) {
+        setIsConnected(status.isConnected);
+      }
     }, 2000);
     return () => clearInterval(interval);
   }, [connectorId]);
@@ -53,6 +77,68 @@ export const ActionControl: React.FC = () => {
 
   return (
     <div className="glass-panel">
+      {/* CMS Configuration Dropdown */}
+      <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--panel-border)', paddingBottom: '1rem' }}>
+        <button 
+          onClick={() => setCmsExpanded(!cmsExpanded)}
+          style={{
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            padding: '0.5rem 0'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Globe className="w-5 h-5" style={{ color: isConnected ? 'var(--success)' : 'var(--danger)' }} />
+            <span style={{ fontWeight: 600 }}>CMS Configuration</span>
+          </div>
+          {cmsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {cmsExpanded && (
+          <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Globe className="w-3 h-3" /> Central System URL
+              </label>
+              <input 
+                type="text" 
+                className="form-control" 
+                style={{ width: '100%', padding: '0.5rem' }}
+                value={wsUrl} 
+                onChange={e => setWsUrl(e.target.value)}
+                placeholder="ws://localhost:3000"
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Cpu className="w-3 h-3" /> Charge Point ID
+              </label>
+              <input 
+                type="text" 
+                className="form-control" 
+                style={{ width: '100%', padding: '0.5rem' }}
+                value={cpId} 
+                onChange={e => setCpId(e.target.value)}
+              />
+            </div>
+            <button 
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: '0.5rem' }}
+              disabled={loadingAction === 'UpdateCMSConfig'}
+              onClick={() => handleAction('UpdateCMSConfig', { endpoint: wsUrl, chargePointId: cpId })}
+            >
+              {loadingAction === 'UpdateCMSConfig' ? 'Connecting...' : 'Save & Reconnect'}
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="panel-header">
         <Settings2 className="w-5 h-5" />
         Charge Point Controls

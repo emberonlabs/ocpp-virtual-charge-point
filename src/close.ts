@@ -6,7 +6,9 @@ const vcps: Map<VCP, () => Promise<VCP>> = new Map();
 
 export async function close(vcp: VCP) {
   if (!process.env.AUTO_RESTART) {
-    process.exit(1);
+    logger.warn("VCP Closed. Waiting for manual reconfiguration or restart.");
+    vcp.disconnect(); // Just disconnect the WS, don't kill the admin server
+    return;
   }
 
   logger.info("Auto-restart enabled. Closing old VCP...");

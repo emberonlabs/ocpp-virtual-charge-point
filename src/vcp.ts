@@ -59,6 +59,12 @@ export class VCP {
       const adminApi = new Hono();
       adminApi.use("/*", cors());
       adminApi.get("/health", (c) => c.text("OK"));
+      adminApi.get("/status", (c) => c.json({
+        endpoint: this.vcpOptions.endpoint,
+        chargePointId: this.vcpOptions.chargePointId,
+        ocppVersion: this.vcpOptions.ocppVersion,
+        isConnected: this.ws?.readyState === WebSocket.OPEN
+      }));
       adminApi.get("/logs", async (c) => c.json(await this.getDiagnosticData()));
       adminApi.get("/transactions", (c) => c.json(this.transactionManager.getActiveTransactions()));
       adminApi.post(
@@ -70,11 +76,23 @@ export class VCP {
             payload: z.any(),
           }),
         ),
-        (c) => {
+        async (c) => {
           const validated = c.req.valid("json");
           if (validated.action === "UpdateSimulationConfig") {
             this.transactionManager.setSimulationConfig(validated.payload);
             return c.json({ status: "Configuration Updated" });
+          }
+          if (validated.action === "UpdateCMSConfig") {
+            const { endpoint, chargePointId } = validated.payload;
+            this.disconnect();
+            this.vcpOptions.endpoint = endpoint;
+            this.vcpOptions.chargePointId = chargePointId;
+            try {
+              await this.connect();
+              return c.json({ status: "Reconnected", config: this.vcpOptions });
+            } catch (err) {
+              return c.json({ status: "Connection Failed", error: String(err) }, 500);
+            }
           }
           this.send(call(validated.action, validated.payload));
           return c.text("OK");
@@ -105,7 +123,13 @@ export class VCP {
         },
       });
 
-      this.ws.on("open", () => resolve());
+      this.ws.on("open", () => {
+        resolve();
+        console.log("\x1b[32m%s\x1b[0m", `✅ Connected to CMS: ${this.vcpOptions.endpoint}/${this.vcpOptions.chargePointId}`);
+        if (this.postMessageActions["connect"]) {
+          this.postMessageActions["connect"]();
+        }
+      });
       this.ws.on("message", (message: string) => this._onMessage(message));
       this.ws.on("ping", () => {
         logger.info("Received PING");
@@ -185,19 +209,20 @@ export class VCP {
     }, interval);
   }
 
-  close() {
-    if (!this.ws) {
-      throw new Error(
-        "Trying to close a Websocket that was not opened. Call connect() first",
-      );
+  disconnect() {
+    if (this.ws) {
+      this.isFinishing = true;
+      this.ws.close();
+      this.ws = undefined;
     }
-    this.isFinishing = true;
-    this.ws.close();
-    this.ws = undefined;
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = undefined;
     }
+  }
+
+  close() {
+    this.disconnect();
     if (this.adminServer) {
       this.adminServer.close();
       this.adminServer = undefined;
