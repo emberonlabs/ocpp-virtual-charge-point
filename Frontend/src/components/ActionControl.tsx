@@ -80,19 +80,6 @@ export const ActionControl: React.FC = () => {
 
         <button 
           className="btn btn-primary"
-          disabled={loadingAction === 'StatusNotification'}
-          onClick={() => handleAction('StatusNotification', {
-            connectorId,
-            errorCode: "NoError",
-            status: "Charging"
-          })}
-        >
-          <Zap className="w-4 h-4" />
-          Set Charging Status
-        </button>
-
-        <button 
-          className="btn btn-primary"
           disabled={loadingAction === 'Authorize'}
           onClick={() => handleAction('Authorize', { idTag: tagId })}
         >
@@ -112,6 +99,19 @@ export const ActionControl: React.FC = () => {
         >
           <Zap className="w-4 h-4" />
           Start Transaction
+        </button>
+
+        <button 
+          className="btn btn-primary"
+          disabled={loadingAction === 'StatusNotification'}
+          onClick={() => handleAction('StatusNotification', {
+            connectorId,
+            errorCode: "NoError",
+            status: "Charging"
+          })}
+        >
+          <Zap className="w-4 h-4" />
+          Set Charging Status
         </button>
 
         <button 

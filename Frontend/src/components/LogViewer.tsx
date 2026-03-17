@@ -30,7 +30,11 @@ export const LogViewer: React.FC = () => {
     }
   }, [logs]);
 
-  const formatMessageLog = (logMsg: string) => {
+  const formatMessageLog = (rawMsg: string) => {
+    // Remove ANSI escape codes (like [32m) from the string before processing
+    // eslint-disable-next-line no-control-regex
+    const logMsg = rawMsg.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+
     if (logMsg.includes('➡️')) {
        const parts = logMsg.split('➡️');
        return <><span className="log-direction-out">➡️OUT</span> {parts[1]}</>;
