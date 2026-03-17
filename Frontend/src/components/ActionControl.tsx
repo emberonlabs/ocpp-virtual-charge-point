@@ -10,6 +10,8 @@ export const ActionControl: React.FC = () => {
   // Power simulation parameters
   const [targetEnergyKwh, setTargetEnergyKwh] = useState<number>(50);
   const [durationSeconds, setDurationSeconds] = useState<number>(60);
+  const [initialSoC, setInitialSoC] = useState<number>(20);
+  const [targetSoC, setTargetSoC] = useState<number>(80);
   
   // Track true active transactions from the backend
   const [activeTx, setActiveTx] = useState<ActiveTransaction | undefined>();
@@ -34,7 +36,9 @@ export const ActionControl: React.FC = () => {
          // Configure the simulator before starting
          await executeOcppAction("UpdateSimulationConfig", {
            targetEnergy: targetEnergyKwh,
-           durationSeconds: durationSeconds
+           durationSeconds: durationSeconds,
+           initialSoC: initialSoC,
+           targetSoC: targetSoC
          });
          const tempTxId = Math.floor(Math.random() * 100000); // Temporary ID until we poll and get the real CS one
          payload.transactionId = tempTxId;
@@ -95,6 +99,26 @@ export const ActionControl: React.FC = () => {
             style={{ width: '100%', marginTop: '0.25rem' }}
           />
         </div>
+        <div style={{ flex: 1, minWidth: '150px' }}>
+          <label>Initial SOC (%)</label>
+          <input 
+            type="number" 
+            className="form-control" 
+            value={initialSoC} 
+            onChange={e => setInitialSoC(Number(e.target.value))}
+            style={{ width: '100%', marginTop: '0.25rem' }}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: '150px' }}>
+          <label>Target SOC (%)</label>
+          <input 
+            type="number" 
+            className="form-control" 
+            value={targetSoC} 
+            onChange={e => setTargetSoC(Number(e.target.value))}
+            style={{ width: '100%', marginTop: '0.25rem' }}
+          />
+        </div>
       </div>
 
       <div style={{
@@ -104,15 +128,27 @@ export const ActionControl: React.FC = () => {
           borderRadius: '0.5rem',
           marginBottom: '1rem',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          flexDirection: 'column',
+          gap: '0.5rem'
       }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Simulated Charging Speed
-          </span>
-          <span style={{ fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <Zap className="w-4 h-4" /> {simulatedKw} kW
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Simulated Charging Speed
+            </span>
+            <span style={{ fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Zap className="w-4 h-4" /> {simulatedKw} kW
+            </span>
+          </div>
+          {activeTx && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Current Battery SOC
+              </span>
+              <span style={{ fontWeight: '600', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <Activity className="w-4 h-4" /> {activeTx.soc?.toFixed(1)}%
+              </span>
+            </div>
+          )}
       </div>
 
       <div className="action-grid">

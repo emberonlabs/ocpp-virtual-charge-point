@@ -15,6 +15,7 @@ export interface ActiveTransaction {
   idTag: string;
   connectorId: number;
   meterValue: number;
+  soc: number;
   startedAt: string;
 }
 
