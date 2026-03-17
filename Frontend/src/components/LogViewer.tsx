@@ -7,18 +7,13 @@ export const LogViewer: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Poll the logs endpoint every 2 seconds
+    // Poll the logs endpoint every 500ms for real-time feel
     const interval = setInterval(async () => {
       const newLogs = await fetchLogs();
       if (newLogs.length > 0) {
-        setLogs(() => {
-          // Add only new logs. Since backend returns all stored, we might get duplicates if we just append.
-          // Very simple logic here: just overwrite local state with backend state, assuming backend maintains a circular buffer
-          // For realtime experience we assume backend `getDiagnosticData` returns the history.
-          return newLogs;
-        });
+        setLogs(newLogs);
       }
-    }, 2000);
+    }, 500);
 
     return () => clearInterval(interval);
   }, []);
@@ -31,16 +26,21 @@ export const LogViewer: React.FC = () => {
   }, [logs]);
 
   const formatMessageLog = (rawMsg: string) => {
-    // Remove ANSI escape codes (like [32m) from the string before processing
+    // Aggressive ANSI escape code removal
     // eslint-disable-next-line no-control-regex
-    const logMsg = rawMsg.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+    let logMsg = rawMsg.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+    
+    // Sometimes colorize adds [32m etc without the escape character if it was partially stripped
+    logMsg = logMsg.replace(/\[\d+m/g, '');
 
     if (logMsg.includes('➡️')) {
        const parts = logMsg.split('➡️');
-       return <><span className="log-direction-out">➡️OUT</span> {parts[1]}</>;
+       const payload = parts[1].trim();
+       return <><span className="log-direction-out">➡️OUT</span> <span className="log-payload">{payload}</span></>;
     } else if (logMsg.includes('⬅️')) {
        const parts = logMsg.split('⬅️');
-       return <><span className="log-direction-in">⬅️IN </span> {parts[1]}</>;
+       const payload = parts[1].trim();
+       return <><span className="log-direction-in">⬅️IN </span> <span className="log-payload">{payload}</span></>;
     }
     return logMsg;
   };

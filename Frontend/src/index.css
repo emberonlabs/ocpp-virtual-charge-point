@@ -237,6 +237,7 @@ body {
 
 .log-direction-in { color: #22c55e; font-weight: bold; }
 .log-direction-out { color: #3b82f6; font-weight: bold; }
+.log-payload { color: #d1d5db; }
 
 ::-webkit-scrollbar {
   width: 8px;

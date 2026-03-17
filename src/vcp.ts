@@ -6,7 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { logger } from "./logger";
+import { logger, logBuffer } from "./logger";
 import { call } from "./messageFactory";
 import type { OcppCall, OcppCallError, OcppCallResult } from "./ocppMessage";
 import {
@@ -205,46 +205,17 @@ export class VCP {
   }
 
   async getDiagnosticData(): Promise<LogEntry[]> {
-    try {
-      // Get logs from Winston logger's memory
-      const transport = logger.transports[0];
-
-      // Create a promise that resolves with collected logs
-      const logStream = new Promise<LogEntry[]>((resolve) => {
-        const entries: LogEntry[] = [];
-
-        // Listen for new logs
-        transport.on(
-          "logged",
-          (info: {
-            timestamp: string;
-            level: string;
-            message: string;
-            [key: string]: unknown;
-          }) => {
-            entries.push({
-              type: "Application",
-              timestamp: info.timestamp || new Date().toISOString(),
-              level: info.level,
-              message: info.message,
-              metadata: Object.fromEntries(
-                Object.entries(info).filter(
-                  ([key]) => !["timestamp", "level", "message"].includes(key),
-                ),
-              ),
-            });
-          },
-        );
-
-        // Resolve after a short delay to collect recent logs
-        setTimeout(() => resolve(entries), 10000);
-      });
-
-      return await logStream;
-    } catch (err) {
-      logger.error("Failed to read application logs:", err);
-      return [];
-    }
+    return logBuffer.map((info) => ({
+      type: "Application",
+      timestamp: info.timestamp || new Date().toISOString(),
+      level: info.level,
+      message: info.message,
+      metadata: Object.fromEntries(
+        Object.entries(info).filter(
+          ([key]) => !["timestamp", "level", "message"].includes(key),
+        ),
+      ),
+    }));
   }
 
   async postMessageAction(
