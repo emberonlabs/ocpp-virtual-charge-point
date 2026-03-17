@@ -60,6 +60,7 @@ export class VCP {
       adminApi.use("/*", cors());
       adminApi.get("/health", (c) => c.text("OK"));
       adminApi.get("/logs", async (c) => c.json(await this.getDiagnosticData()));
+      adminApi.get("/transactions", (c) => c.json(this.transactionManager.getActiveTransactions()));
       adminApi.post(
         "/execute",
         zValidator(
@@ -71,6 +72,10 @@ export class VCP {
         ),
         (c) => {
           const validated = c.req.valid("json");
+          if (validated.action === "UpdateSimulationConfig") {
+            this.transactionManager.setSimulationConfig(validated.payload);
+            return c.json({ status: "Configuration Updated" });
+          }
           this.send(call(validated.action, validated.payload));
           return c.text("OK");
         },

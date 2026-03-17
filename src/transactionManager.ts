@@ -1,8 +1,13 @@
 import type { VCP } from "./vcp";
 
-const METER_VALUES_INTERVAL_SEC = 15;
+const DEFAULT_METER_VALUES_INTERVAL_SEC = 15;
 
 type TransactionId = string | number;
+
+export interface SimulationConfig {
+  targetEnergy: number; // in kWh
+  durationSeconds: number;
+}
 
 interface TransactionState {
   startedAt: Date;
@@ -27,6 +32,16 @@ export class TransactionManager {
     TransactionState & { meterValuesTimer: NodeJS.Timer }
   > = new Map();
 
+  private simulationConfig?: SimulationConfig;
+
+  getActiveTransactions() {
+    return Array.from(this.transactions.values()).map(({ meterValuesTimer, ...t }) => t);
+  }
+
+  setSimulationConfig(config: SimulationConfig) {
+    this.simulationConfig = config;
+  }
+
   canStartNewTransaction(connectorId: number) {
     return !Array.from(this.transactions.values()).some(
       (transaction) => transaction.connectorId === connectorId,
@@ -34,6 +49,9 @@ export class TransactionManager {
   }
 
   startTransaction(vcp: VCP, startTransactionProps: StartTransactionProps) {
+    const config = this.simulationConfig;
+    const intervalSec = config ? 5 : DEFAULT_METER_VALUES_INTERVAL_SEC;
+
     const meterValuesTimer = setInterval(() => {
       // biome-ignore lint/style/noNonNullAssertion: transaction must exist
       const currentTransactionState = this.transactions.get(
@@ -41,11 +59,43 @@ export class TransactionManager {
       )!;
       const { meterValuesTimer, ...currentTransaction } =
         currentTransactionState;
+      
+      const meterValue = this.getMeterValue(startTransactionProps.transactionId);
+      
       startTransactionProps.meterValuesCallback({
         ...currentTransaction,
-        meterValue: this.getMeterValue(startTransactionProps.transactionId),
+        meterValue,
       });
-    }, METER_VALUES_INTERVAL_SEC * 1000);
+
+      const secondsElapsed = (new Date().getTime() - currentTransactionState.startedAt.getTime()) / 1000;
+
+      // Auto-stop logic
+      if (config && (secondsElapsed >= config.durationSeconds || meterValue >= config.targetEnergy * 1000)) {
+        clearInterval(meterValuesTimer);
+        // Dispatch stop transaction from the global factory wrapper
+        import("./v16/messages/stopTransaction").then(({ stopTransactionOcppMessage }) => {
+          vcp.send(
+            stopTransactionOcppMessage.request({
+              transactionId: startTransactionProps.transactionId as number,
+              meterStop: Math.floor(meterValue),
+              timestamp: new Date().toISOString(),
+              idTag: startTransactionProps.idTag,
+              reason: "Local"
+            })
+          );
+          // And emit status notification Finishing
+          import("./v16/messages/statusNotification").then(({ statusNotificationOcppMessage }) => {
+            vcp.send(
+              statusNotificationOcppMessage.request({
+                connectorId: startTransactionProps.connectorId,
+                errorCode: "NoError",
+                status: "Finishing"
+              })
+            );
+          });
+        });
+      }
+    }, intervalSec * 1000);
     this.transactions.set(startTransactionProps.transactionId, {
       transactionId: startTransactionProps.transactionId,
       idTag: startTransactionProps.idTag,
@@ -70,6 +120,16 @@ export class TransactionManager {
     if (!transaction) {
       return 0;
     }
+    const secondsElapsed = (new Date().getTime() - transaction.startedAt.getTime()) / 1000;
+    
+    // If we have a simulation config, use linear interpolation to reach targetEnergy over durationSeconds
+    if (this.simulationConfig) {
+       const energyPerSecond = this.simulationConfig.targetEnergy / this.simulationConfig.durationSeconds;
+       const currentEnergyKwh = Math.min(secondsElapsed * energyPerSecond, this.simulationConfig.targetEnergy);
+       return currentEnergyKwh * 1000; // Return Wh
+    }
+
+    // Default legacy behavior: 1 Wh per 100ms
     return (new Date().getTime() - transaction.startedAt.getTime()) / 100;
   }
 }

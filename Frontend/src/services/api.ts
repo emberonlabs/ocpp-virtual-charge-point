@@ -10,12 +10,30 @@ export interface LogEntry {
   metadata: Record<string, any>;
 }
 
+export interface ActiveTransaction {
+  transactionId: number;
+  idTag: string;
+  connectorId: number;
+  meterValue: number;
+  startedAt: string;
+}
+
 export const fetchLogs = async (): Promise<LogEntry[]> => {
   try {
     const response = await axios.get(`${ADMIN_API_URL}/logs`);
     return response.data;
   } catch (error) {
     console.error('Error fetching logs:', error);
+    return [];
+  }
+};
+
+export const fetchActiveTransactions = async (): Promise<ActiveTransaction[]> => {
+  try {
+    const response = await axios.get(`${ADMIN_API_URL}/transactions`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
     return [];
   }
 };
