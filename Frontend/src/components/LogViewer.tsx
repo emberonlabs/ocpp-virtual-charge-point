@@ -4,6 +4,7 @@ import { fetchLogs, type LogEntry } from '../services/api';
 
 export const LogViewer: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [autoScroll, setAutoScroll] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,10 +21,10 @@ export const LogViewer: React.FC = () => {
 
   // auto scroll to bottom
   useEffect(() => {
-    if (terminalRef.current) {
+    if (autoScroll && terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [logs, autoScroll]);
 
   const formatMessageLog = (rawMsg: string) => {
     // Aggressive ANSI escape code removal
@@ -46,13 +47,34 @@ export const LogViewer: React.FC = () => {
   };
 
   return (
-    <div className="glass-panel" style={{ flex: 1, minHeight: 0 }}>
-      <div className="panel-header" style={{ marginBottom: '0.75rem' }}>
-        <Terminal className="w-5 h-5" />
-        Real-time Protocol Terminal
+    <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="panel-header" style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Terminal className="w-5 h-5" />
+          Real-time Protocol Terminal
+        </div>
+        <button 
+          onClick={() => setAutoScroll(!autoScroll)}
+          style={{
+            background: autoScroll ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            border: `1px solid ${autoScroll ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+            color: autoScroll ? '#22c55e' : '#ef4444',
+            padding: '0.2rem 0.6rem',
+            borderRadius: '0.375rem',
+            fontSize: '0.7rem',
+            cursor: 'pointer',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.025em',
+            transition: 'all 0.2s',
+            zIndex: 10
+          }}
+        >
+          Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
+        </button>
       </div>
       
-      <div className="log-terminal" ref={terminalRef}>
+      <div className="log-terminal" ref={terminalRef} style={{ flex: 1 }}>
         {logs.map((log, i) => (
           <div key={i} className="log-entry">
             <span className="log-time">
