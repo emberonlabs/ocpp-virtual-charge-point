@@ -11,6 +11,7 @@ export const ActionControl: React.FC = () => {
   const [wsUrl, setWsUrl] = useState('ws://localhost:3000');
   const [cpId, setCpId] = useState('123456');
   const [cmsExpanded, setCmsExpanded] = useState(false);
+  const [controlsExpanded, setControlsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
   // Power simulation parameters
@@ -139,105 +140,128 @@ export const ActionControl: React.FC = () => {
         )}
       </div>
 
-      <div className="panel-header">
-        <Settings2 className="w-5 h-5" />
-        Charge Point Controls
+      {/* Charge Point Controls Dropdown */}
+      <div className="panel-header" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
+        <button 
+          onClick={() => setControlsExpanded(!controlsExpanded)}
+          style={{
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            padding: '0.5rem 0'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Settings2 className="w-5 h-5" />
+            <span style={{ fontWeight: 600, fontSize: '1.25rem' }}>Charge Point Controls</span>
+          </div>
+          {controlsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
       </div>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>RFID Tag ID</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            style={{ width: '90%', padding: '0.5rem' }}
-            value={tagId} 
-            onChange={e => setTagId(e.target.value)}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Connector ID</label>
-          <input 
-            type="number" 
-            className="form-control" 
-            style={{ width: '90%', padding: '0.5rem' }}
-            value={connectorId} 
-            onChange={e => setConnectorId(Number(e.target.value))}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Target Energy (kWh)</label>
-          <input 
-            type="number" 
-            className="form-control" 
-            style={{ width: '90%', padding: '0.5rem' }}
-            value={targetEnergyKwh} 
-            onChange={e => setTargetEnergyKwh(Number(e.target.value))}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Duration (Seconds)</label>
-          <input 
-            type="number" 
-            className="form-control" 
-            style={{ width: '90%', padding: '0.5rem' }}
-            value={durationSeconds} 
-            onChange={e => setDurationSeconds(Number(e.target.value))}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Initial SOC (%)</label>
-          <input 
-            type="number" 
-            className="form-control" 
-            style={{ width: '90%', padding: '0.5rem' }}
-            value={initialSoC} 
-            onChange={e => setInitialSoC(Number(e.target.value))}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Target SOC (%)</label>
-          <input 
-            type="number" 
-            className="form-control" 
-            style={{ width: '90%', padding: '0.5rem' }}
-            value={targetSoC} 
-            onChange={e => setTargetSoC(Number(e.target.value))}
-          />
-        </div>
-      </div>
-
-      <div style={{
-          background: 'rgba(59, 130, 246, 0.1)',
-          border: '1px solid rgba(59, 130, 246, 0.2)',
-          padding: '0.75rem',
-          borderRadius: '0.5rem',
-          marginBottom: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem'
-      }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Simulated Charging Speed
-            </span>
-            <span style={{ fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Zap className="w-4 h-4" /> {simulatedKw} kW
-            </span>
-          </div>
-          {activeTx && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Current Battery SOC
-              </span>
-              <span style={{ fontWeight: '600', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <Activity className="w-4 h-4" /> {activeTx.soc?.toFixed(1)}%
-              </span>
+      {controlsExpanded && (
+        <div style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>RFID Tag ID</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                style={{ width: '90%', padding: '0.5rem' }}
+                value={tagId} 
+                onChange={e => setTagId(e.target.value)}
+              />
             </div>
-          )}
-      </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Connector ID</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                style={{ width: '90%', padding: '0.5rem' }}
+                value={connectorId} 
+                onChange={e => setConnectorId(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Target Energy (kWh)</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                style={{ width: '90%', padding: '0.5rem' }}
+                value={targetEnergyKwh} 
+                onChange={e => setTargetEnergyKwh(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Duration (Seconds)</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                style={{ width: '90%', padding: '0.5rem' }}
+                value={durationSeconds} 
+                onChange={e => setDurationSeconds(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Initial SOC (%)</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                style={{ width: '90%', padding: '0.5rem' }}
+                value={initialSoC} 
+                onChange={e => setInitialSoC(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Target SOC (%)</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                style={{ width: '90%', padding: '0.5rem' }}
+                value={targetSoC} 
+                onChange={e => setTargetSoC(Number(e.target.value))}
+              />
+            </div>
+          </div>
 
-      <div className="action-grid">
+          <div style={{
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              padding: '0.75rem',
+              borderRadius: '0.5rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem'
+          }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Simulated Charging Speed
+                </span>
+                <span style={{ fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Zap className="w-4 h-4" /> {simulatedKw} kW
+                </span>
+              </div>
+              {activeTx && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Current Battery SOC
+                  </span>
+                  <span style={{ fontWeight: '600', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Activity className="w-4 h-4" /> {activeTx.soc?.toFixed(1)}%
+                  </span>
+                </div>
+              )}
+          </div>
+        </div>
+      )}
+
+      <div className="action-grid" style={{ marginTop: controlsExpanded ? 0 : '1rem' }}>
         <button 
           className="btn btn-primary"
           disabled={loadingAction === 'BootNotification'}
