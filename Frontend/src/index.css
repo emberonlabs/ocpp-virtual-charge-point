@@ -244,16 +244,24 @@ body {
   border-radius: 0.25rem;
   border-left: 2px solid transparent;
   line-height: 1.4;
-  word-break: break-all;
 }
 
 .log-entry:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.log-time,
+.log-level-tag {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.log-entry > span:last-child {
+  word-break: break-all;
+}
+
 .log-time {
   color: var(--text-secondary);
-  white-space: nowrap;
 }
 
 .log-info { color: #3b82f6; border-left-color: #3b82f6; }

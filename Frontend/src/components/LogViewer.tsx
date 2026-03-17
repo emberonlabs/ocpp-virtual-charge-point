@@ -158,7 +158,7 @@ export const LogViewer: React.FC = () => {
             <span className="log-time">
               {log.timestamp.split(' ')[1]}
             </span>
-            <span className={`log-${log.level}`}>[{log.level.toUpperCase()}]</span>
+            <span className={`log-level-tag log-${log.level}`}>[{log.level.toUpperCase()}]</span>
             <span>{formatMessageLog(log.message)}</span>
           </div>
         ))}
