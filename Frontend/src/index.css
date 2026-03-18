@@ -22,9 +22,10 @@ body {
   font-family: var(--font-family);
   background-color: var(--background);
   color: var(--text-primary);
-  min-height: 100vh;
+  height: 100vh;
+  width: 100vw;
   margin: 0;
-  overflow-x: hidden;
+  overflow: hidden;
   line-height: 1.5;
   background-image: 
     radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
@@ -36,6 +37,7 @@ body {
   height: 100vh;
   padding: 1.5rem;
   gap: 1.5rem;
+  box-sizing: border-box;
 }
 
 .glass-panel {
@@ -63,10 +65,13 @@ body {
 }
 
 .left-sidebar {
-  width: 320px;
+  width: 360px;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  height: 100%;
+  flex-shrink: 0;
+  min-height: 0;
 }
 
 .main-content {
@@ -74,7 +79,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  height: 100%;
   overflow: hidden;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .status-badge {

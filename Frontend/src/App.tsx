@@ -27,7 +27,7 @@ function App() {
     <ToastProvider>
     <div className="app-container">
       <div className="left-sidebar">
-        <div className="glass-panel" style={{ padding: '1.25rem' }}>
+        <div className="glass-panel" style={{ padding: '1.25rem', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <div style={{ background: 'var(--primary)', padding: '0.5rem', borderRadius: '0.5rem' }}>
               <Zap className="w-6 h-6" style={{ color: 'white' }} />
@@ -44,8 +44,10 @@ function App() {
           </div>
         </div>
 
-        {/* Action Controls Side Panel */}
-        <ActionControl />
+        {/* Scrollable container for controls */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column', gap: '1.5rem' }} className="hide-scrollbar">
+          <ActionControl />
+        </div>
       </div>
 
       <div className="main-content">
