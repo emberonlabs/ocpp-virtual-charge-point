@@ -37,12 +37,38 @@ export class TransactionManager {
 
   private simulationConfig?: SimulationConfig;
 
+  // Energy flow state — decoupled from transaction state
+  private energyFlowEnabled = false;
+  private energyFlowStartedAt?: Date;
+
+  // ─── Energy Flow Control ─────────────────────────────────────────────────
+
+  enableEnergyFlow() {
+    if (!this.energyFlowEnabled) {
+      this.energyFlowEnabled = true;
+      // Set the energy flow start time NOW, not at transaction start
+      this.energyFlowStartedAt = new Date();
+    }
+  }
+
+  disableEnergyFlow() {
+    this.energyFlowEnabled = false;
+    // Keep energyFlowStartedAt so we know how much energy was already delivered
+  }
+
+  isEnergyFlowEnabled() {
+    return this.energyFlowEnabled;
+  }
+
+  // ─── Config & Transactions ────────────────────────────────────────────────
+
   getActiveTransactions() {
     return Array.from(this.transactions.values()).map(
       ({ meterValuesTimer, ...t }) => ({
         ...t,
         meterValue: this.getMeterValue(t.transactionId),
         soc: this.getSoC(t.transactionId),
+        energyFlowEnabled: this.energyFlowEnabled,
       }),
     );
   }
@@ -57,9 +83,15 @@ export class TransactionManager {
     );
   }
 
+  // ─── Transaction Lifecycle ────────────────────────────────────────────────
+
   startTransaction(vcp: VCP, startTransactionProps: StartTransactionProps) {
     const config = this.simulationConfig;
     const intervalSec = config ? 5 : DEFAULT_METER_VALUES_INTERVAL_SEC;
+
+    // Reset energy flow state for new transaction
+    this.energyFlowEnabled = false;
+    this.energyFlowStartedAt = undefined;
 
     const meterValuesTimer = setInterval(() => {
       // biome-ignore lint/style/noNonNullAssertion: transaction must exist
@@ -68,59 +100,73 @@ export class TransactionManager {
       )!;
       const { meterValuesTimer, ...currentTransaction } =
         currentTransactionState;
-      
+
+      // ── GATE: Only send meter values if energy flow is enabled ──
+      if (!this.energyFlowEnabled) {
+        return;
+      }
+
       const meterValue = this.getMeterValue(startTransactionProps.transactionId);
       const soc = this.getSoC(startTransactionProps.transactionId);
-      
+
       startTransactionProps.meterValuesCallback({
         ...currentTransaction,
         meterValue,
         soc,
       });
 
-      const secondsElapsed = (new Date().getTime() - currentTransactionState.startedAt.getTime()) / 1000;
+      // Auto-stop logic — only evaluated while energy is flowing
+      if (config) {
+        const secondsFlowing = this.energyFlowStartedAt
+          ? (new Date().getTime() - this.energyFlowStartedAt.getTime()) / 1000
+          : 0;
 
-      // Auto-stop logic
-      const isTimeUp = config && secondsElapsed >= config.durationSeconds;
-      const isEnergyReached = config && meterValue >= config.targetEnergy * 1000;
-      const isSoCReached = config && config.targetSoC !== undefined && soc >= config.targetSoC;
+        const isTimeUp = secondsFlowing >= config.durationSeconds;
+        const isEnergyReached = meterValue >= config.targetEnergy * 1000;
+        const isSoCReached =
+          config.targetSoC !== undefined && soc >= config.targetSoC;
 
-      if (config && (isTimeUp || isEnergyReached || isSoCReached)) {
-        clearInterval(meterValuesTimer);
-        // Dispatch stop transaction from the global factory wrapper
-        import("./v16/messages/stopTransaction").then(({ stopTransactionOcppMessage }) => {
-          vcp.send(
-            stopTransactionOcppMessage.request({
-              transactionId: startTransactionProps.transactionId as number,
-              meterStop: Math.floor(meterValue),
-              timestamp: new Date().toISOString(),
-              idTag: startTransactionProps.idTag,
-              reason: "Local"
-            })
-          );
-          // And emit status notification Finishing
-          import("./v16/messages/statusNotification").then(({ statusNotificationOcppMessage }) => {
-            vcp.send(
-              statusNotificationOcppMessage.request({
-                connectorId: startTransactionProps.connectorId,
-                errorCode: "NoError",
-                status: "Finishing"
-              })
-            );
-            // Auto-transition back to Available after 3 seconds
-            setTimeout(() => {
+        if (isTimeUp || isEnergyReached || isSoCReached) {
+          this.energyFlowEnabled = false;
+          clearInterval(meterValuesTimer);
+
+          import("./v16/messages/stopTransaction").then(
+            ({ stopTransactionOcppMessage }) => {
               vcp.send(
-                statusNotificationOcppMessage.request({
-                  connectorId: startTransactionProps.connectorId,
-                  errorCode: "NoError",
-                  status: "Available"
-                })
+                stopTransactionOcppMessage.request({
+                  transactionId: startTransactionProps.transactionId as number,
+                  meterStop: Math.floor(meterValue),
+                  timestamp: new Date().toISOString(),
+                  idTag: startTransactionProps.idTag,
+                  reason: "Local",
+                }),
               );
-            }, 3000);
-          });
-        });
+              import("./v16/messages/statusNotification").then(
+                ({ statusNotificationOcppMessage }) => {
+                  vcp.send(
+                    statusNotificationOcppMessage.request({
+                      connectorId: startTransactionProps.connectorId,
+                      errorCode: "NoError",
+                      status: "Finishing",
+                    }),
+                  );
+                  setTimeout(() => {
+                    vcp.send(
+                      statusNotificationOcppMessage.request({
+                        connectorId: startTransactionProps.connectorId,
+                        errorCode: "NoError",
+                        status: "Available",
+                      }),
+                    );
+                  }, 3000);
+                },
+              );
+            },
+          );
+        }
       }
     }, intervalSec * 1000);
+
     this.transactions.set(startTransactionProps.transactionId, {
       transactionId: startTransactionProps.transactionId,
       idTag: startTransactionProps.idTag,
@@ -132,17 +178,18 @@ export class TransactionManager {
       meterValuesTimer: meterValuesTimer,
     });
 
-    // Send the Charging status immediately
-    import("./v16/messages/statusNotification").then(({ statusNotificationOcppMessage }) => {
-      console.log(`[TransactionManager] Setting connector ${startTransactionProps.connectorId} to Charging`);
-      vcp.send(
-        statusNotificationOcppMessage.request({
-          connectorId: startTransactionProps.connectorId,
-          errorCode: "NoError",
-          status: "Charging"
-        })
-      );
-    });
+    // Tell the CMS the connector is now occupied (Preparing state)
+    import("./v16/messages/statusNotification").then(
+      ({ statusNotificationOcppMessage }) => {
+        vcp.send(
+          statusNotificationOcppMessage.request({
+            connectorId: startTransactionProps.connectorId,
+            errorCode: "NoError",
+            status: "Preparing",
+          }),
+        );
+      },
+    );
   }
 
   stopTransaction(transactionId: TransactionId) {
@@ -151,24 +198,37 @@ export class TransactionManager {
       clearInterval(transaction.meterValuesTimer);
     }
     this.transactions.delete(transactionId);
+    // Reset flow state when transaction ends
+    this.energyFlowEnabled = false;
+    this.energyFlowStartedAt = undefined;
   }
 
+  // ─── Meter Calculations (based on energyFlowStartedAt) ───────────────────
+
   getMeterValue(transactionId: TransactionId) {
+    if (!this.energyFlowStartedAt) {
+      return 0;
+    }
     const transaction = this.transactions.get(transactionId);
     if (!transaction) {
       return 0;
     }
-    const secondsElapsed = (new Date().getTime() - transaction.startedAt.getTime()) / 1000;
-    
-    // If we have a simulation config, use linear interpolation to reach targetEnergy over durationSeconds
+
+    const secondsFlowing =
+      (new Date().getTime() - this.energyFlowStartedAt.getTime()) / 1000;
+
     if (this.simulationConfig) {
-       const energyPerSecond = this.simulationConfig.targetEnergy / this.simulationConfig.durationSeconds;
-       const currentEnergyKwh = Math.min(secondsElapsed * energyPerSecond, this.simulationConfig.targetEnergy);
-       return currentEnergyKwh * 1000; // Return Wh
+      const energyPerSecond =
+        this.simulationConfig.targetEnergy / this.simulationConfig.durationSeconds;
+      const currentEnergyKwh = Math.min(
+        secondsFlowing * energyPerSecond,
+        this.simulationConfig.targetEnergy,
+      );
+      return currentEnergyKwh * 1000; // Return Wh
     }
 
-    // Default legacy behavior: 1 Wh per 100ms
-    return (new Date().getTime() - transaction.startedAt.getTime()) / 100;
+    // Default legacy behavior: 1 Wh per 100ms of flow
+    return secondsFlowing * 10;
   }
 
   getSoC(transactionId: TransactionId) {
@@ -176,12 +236,19 @@ export class TransactionManager {
     if (!transaction) {
       return 0;
     }
-    const secondsElapsed = (new Date().getTime() - transaction.startedAt.getTime()) / 1000;
 
-    if (this.simulationConfig && this.simulationConfig.initialSoC !== undefined && this.simulationConfig.targetSoC !== undefined) {
+    if (
+      this.simulationConfig?.initialSoC !== undefined &&
+      this.simulationConfig?.targetSoC !== undefined
+    ) {
+      if (!this.energyFlowStartedAt) {
+        return this.simulationConfig.initialSoC;
+      }
       const { initialSoC, targetSoC, durationSeconds } = this.simulationConfig;
+      const secondsFlowing =
+        (new Date().getTime() - this.energyFlowStartedAt.getTime()) / 1000;
       const socPerSecond = (targetSoC - initialSoC) / durationSeconds;
-      return Math.min(initialSoC + secondsElapsed * socPerSecond, targetSoC);
+      return Math.min(initialSoC + secondsFlowing * socPerSecond, targetSoC);
     }
 
     return transaction.soc;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Power, Activity, ShieldCheck, Zap, XSquare, Settings2, ChevronDown, ChevronUp, Globe, Cpu } from 'lucide-react';
 import { executeOcppAction, fetchActiveTransactions, fetchStatus, type ActiveTransaction } from '../services/api';
 import { useToast } from './Toast';
@@ -39,6 +39,7 @@ export const ActionControl: React.FC = () => {
 
   // Track true active transactions from the backend
   const [activeTx, setActiveTx] = useState<ActiveTransaction | undefined>();
+  const [energyFlowEnabled, setEnergyFlowEnabled] = useState(false);
 
   const validate = useCallback((): boolean => {
     const newErrors: ValidationErrors = {};
@@ -92,6 +93,7 @@ export const ActionControl: React.FC = () => {
         const txs = await fetchActiveTransactions();
         const currentTx = txs.find(t => t.connectorId === connectorId);
         setActiveTx(currentTx);
+        setEnergyFlowEnabled(currentTx?.energyFlowEnabled ?? false);
         
         const status = await fetchStatus();
         if (status) {
@@ -391,6 +393,56 @@ export const ActionControl: React.FC = () => {
         >
           {loadingAction === 'StartTransaction' ? <span className="spinner" /> : <Zap className="w-4 h-4" />}
           Start Transaction
+        </button>
+
+        <button 
+          style={{
+            padding: '0.6rem 1rem',
+            borderRadius: '0.5rem',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            border: 'none',
+            cursor: activeTx && !energyFlowEnabled ? 'pointer' : (!activeTx ? 'not-allowed' : 'pointer'),
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            opacity: !activeTx ? 0.5 : 1,
+            background: energyFlowEnabled
+              ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+              : 'linear-gradient(135deg, #10b981, #059669)',
+            color: '#fff',
+            transition: 'all 0.2s ease'
+          }}
+          disabled={!activeTx || loadingAction === 'StartEnergyFlow' || loadingAction === 'StopEnergyFlow'}
+          onClick={async () => {
+            const action = energyFlowEnabled ? 'StopEnergyFlow' : 'StartEnergyFlow';
+            setLoadingAction(action);
+            try {
+              if (action === 'StartEnergyFlow') {
+                // Push the current form config to the backend BEFORE starting energy flow.
+                // This is critical for remote-started transactions where UpdateSimulationConfig
+                // was never called (no local StartTransaction button was clicked).
+                await executeOcppAction('UpdateSimulationConfig', {
+                  targetEnergy: targetEnergyKwh,
+                  durationSeconds: durationSeconds,
+                  initialSoC: initialSoC,
+                  targetSoC: targetSoC
+                });
+              }
+              await executeOcppAction(action, {});
+              setEnergyFlowEnabled(!energyFlowEnabled);
+            } catch (e: any) {
+              showError(e.message);
+            } finally {
+              setLoadingAction(null);
+            }
+          }}
+        >
+          {(loadingAction === 'StartEnergyFlow' || loadingAction === 'StopEnergyFlow')
+            ? <span className="spinner" />
+            : <Zap className="w-4 h-4" />
+          }
+          {energyFlowEnabled ? 'Stop Energy Flow' : 'Start Energy Flow'}
         </button>
 
         <button 

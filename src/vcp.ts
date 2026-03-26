@@ -86,6 +86,34 @@ export class VCP {
             this.transactionManager.setSimulationConfig(validated.payload);
             return c.json({ status: "Configuration Updated" });
           }
+          if (validated.action === "StartEnergyFlow") {
+            this.transactionManager.enableEnergyFlow();
+            // Notify CMS that power is now physically flowing
+            const txs = this.transactionManager.getActiveTransactions();
+            for (const tx of txs) {
+              const { statusNotificationOcppMessage } = await import("./v16/messages/statusNotification");
+              this.send(statusNotificationOcppMessage.request({
+                connectorId: tx.connectorId,
+                errorCode: "NoError",
+                status: "Charging",
+              }));
+            }
+            return c.json({ status: "Energy Flow Started" });
+          }
+          if (validated.action === "StopEnergyFlow") {
+            this.transactionManager.disableEnergyFlow();
+            // Notify CMS that power delivery is paused (session still active)
+            const txs = this.transactionManager.getActiveTransactions();
+            for (const tx of txs) {
+              const { statusNotificationOcppMessage } = await import("./v16/messages/statusNotification");
+              this.send(statusNotificationOcppMessage.request({
+                connectorId: tx.connectorId,
+                errorCode: "NoError",
+                status: "SuspendedEVSE",
+              }));
+            }
+            return c.json({ status: "Energy Flow Stopped" });
+          }
           if (validated.action === "UpdateCMSConfig") {
             const { endpoint, chargePointId } = validated.payload;
             this.disconnect();

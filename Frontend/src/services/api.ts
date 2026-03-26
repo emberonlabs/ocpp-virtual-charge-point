@@ -17,6 +17,7 @@ export interface ActiveTransaction {
   meterValue: number;
   soc: number;
   startedAt: string;
+  energyFlowEnabled: boolean;
 }
 
 export interface VCPStatus {
