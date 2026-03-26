@@ -502,6 +502,94 @@ export const ActionControl: React.FC = () => {
           Stop Transaction
         </button>
       </div>
+
+      {/* ── Force Stop ── always visible, for test cleanup ── */}
+      <ForceStopSection tagId={tagId} connectorId={connectorId} showError={showError} showSuccess={showSuccess} />
+    </div>
+  );
+};
+
+interface ForceStopProps {
+  tagId: string;
+  connectorId: number;
+  showError: (msg: string) => void;
+  showSuccess: (msg: string) => void;
+}
+
+const ForceStopSection: React.FC<ForceStopProps> = ({ tagId, connectorId, showError, showSuccess }) => {
+  const [manualTxId, setManualTxId] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleForceStop = async () => {
+    const txId = parseInt(manualTxId, 10);
+    if (isNaN(txId) || txId <= 0) {
+      showError('Enter a valid positive Transaction ID');
+      return;
+    }
+    setLoading(true);
+    try {
+      await executeOcppAction('StopTransaction', {
+        transactionId: txId,
+        idTag: tagId,
+        meterStop: 0,
+        timestamp: new Date().toISOString(),
+        reason: 'Local'
+      });
+      // also send StatusNotification Available
+      await executeOcppAction('StatusNotification', {
+        connectorId,
+        errorCode: 'NoError',
+        status: 'Finishing'
+      });
+      setTimeout(async () => {
+        await executeOcppAction('StatusNotification', {
+          connectorId,
+          errorCode: 'NoError',
+          status: 'Available'
+        });
+      }, 3000);
+      showSuccess(`Force-stopped transaction #${txId}`);
+      setManualTxId('');
+    } catch (e: any) {
+      showError(e.message || 'Force stop failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      marginTop: '1.25rem',
+      padding: '1rem',
+      borderRadius: '0.6rem',
+      border: '1px dashed rgba(239, 68, 68, 0.4)',
+      background: 'rgba(239, 68, 68, 0.05)'
+    }}>
+      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <XSquare style={{ width: '0.9rem', height: '0.9rem', color: '#ef4444' }} />
+        <span style={{ fontWeight: 600, color: '#ef4444' }}>Force Stop</span>
+        <span>— manually close any transaction by ID</span>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <input
+          type="number"
+          className="form-control"
+          placeholder="Transaction ID"
+          value={manualTxId}
+          onChange={e => setManualTxId(e.target.value)}
+          style={{ flex: 1, padding: '0.45rem 0.6rem', fontSize: '0.9rem' }}
+          onKeyDown={e => e.key === 'Enter' && handleForceStop()}
+        />
+        <button
+          className="btn btn-danger"
+          disabled={loading || !manualTxId}
+          onClick={handleForceStop}
+          style={{ whiteSpace: 'nowrap', padding: '0.45rem 1rem' }}
+        >
+          {loading ? <span className="spinner" /> : <XSquare className="w-4 h-4" />}
+          Stop
+        </button>
+      </div>
     </div>
   );
 };
