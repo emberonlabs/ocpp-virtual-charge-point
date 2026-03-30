@@ -17,6 +17,9 @@ interface TransactionState {
   transactionId: TransactionId;
   meterValue: number;
   soc: number;
+  currentPowerW: number;  // simulated watts currently flowing
+  voltage: number;        // simulated voltage (V)
+  currentAmps: number;    // simulated current (A)
   evseId?: number;
   connectorId: number;
 }
@@ -108,11 +111,17 @@ export class TransactionManager {
 
       const meterValue = this.getMeterValue(startTransactionProps.transactionId);
       const soc = this.getSoC(startTransactionProps.transactionId);
+      const currentPowerW = this.energyFlowEnabled ? this.getPowerW() : 0;
+      const voltage = 230; // Standard AC single-phase voltage (V)
+      const currentAmps = voltage > 0 ? currentPowerW / voltage : 0;
 
       startTransactionProps.meterValuesCallback({
         ...currentTransaction,
         meterValue,
         soc,
+        currentPowerW,
+        voltage,
+        currentAmps,
       });
 
       // Auto-stop logic — only evaluated while energy is flowing
@@ -252,5 +261,15 @@ export class TransactionManager {
     }
 
     return transaction.soc;
+  }
+
+  // Returns simulated power in Watts based on the simulation profile
+  getPowerW(): number {
+    if (!this.simulationConfig) {
+      // Legacy default: ~360W (1 Wh per 10ms tick → 10 Wh/s = 36kW, too high — use 360W as a sane default)
+      return 360;
+    }
+    // P (W) = E (kWh) / t (h) = targetEnergy * 3600 / durationSeconds
+    return (this.simulationConfig.targetEnergy * 3600 * 1000) / this.simulationConfig.durationSeconds;
   }
 }

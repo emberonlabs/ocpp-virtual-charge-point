@@ -464,6 +464,19 @@ export const ActionControl: React.FC = () => {
           onClick={() => handleAction('StatusNotification', {
             connectorId,
             errorCode: "NoError",
+            status: "Preparing"
+          })}
+        >
+          {loadingAction === 'StatusNotification' ? <span className="spinner" /> : <Zap className="w-4 h-4" />}
+          Set Preparing Status
+        </button>
+
+        <button 
+          className="btn btn-primary"
+          disabled={loadingAction === 'StatusNotification' || isFormInvalid}
+          onClick={() => handleAction('StatusNotification', {
+            connectorId,
+            errorCode: "NoError",
             status: "Charging"
           })}
         >

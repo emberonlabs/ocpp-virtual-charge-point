@@ -39,6 +39,37 @@ class StartTransactionOcppMessage extends OcppOutgoing<
       idTag: call.payload.idTag,
       connectorId: call.payload.connectorId,
       meterValuesCallback: async (transactionState) => {
+        const sampledValue: any[] = [
+          {
+            value: (transactionState.meterValue / 1000).toString(),
+            measurand: "Energy.Active.Import.Register",
+            unit: "kWh",
+          },
+          {
+            value: transactionState.voltage.toFixed(1),
+            measurand: "Voltage",
+            unit: "V",
+          },
+          {
+            value: transactionState.currentAmps.toFixed(2),
+            measurand: "Current.Import",
+            unit: "A",
+          },
+          {
+            value: transactionState.currentPowerW.toFixed(0),
+            measurand: "Power.Active.Import",
+            unit: "W",
+          },
+        ];
+
+        if (transactionState.soc > 0) {
+          sampledValue.push({
+            value: Math.round(transactionState.soc).toString(),
+            measurand: "SoC",
+            unit: "Percent",
+          });
+        }
+
         vcp.send(
           meterValuesOcppMessage.request({
             connectorId: call.payload.connectorId,
@@ -46,18 +77,7 @@ class StartTransactionOcppMessage extends OcppOutgoing<
             meterValue: [
               {
                 timestamp: new Date().toISOString(),
-                sampledValue: [
-                  {
-                    value: (transactionState.meterValue / 1000).toString(),
-                    measurand: "Energy.Active.Import.Register",
-                    unit: "kWh",
-                  },
-                  {
-                    value: transactionState.soc.toFixed(1),
-                    measurand: "SoC",
-                    unit: "Percent",
-                  },
-                ],
+                sampledValue: sampledValue as any,
               },
             ],
           }),
