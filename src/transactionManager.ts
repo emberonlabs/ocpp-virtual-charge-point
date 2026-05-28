@@ -186,19 +186,6 @@ export class TransactionManager {
       connectorId: startTransactionProps.connectorId,
       meterValuesTimer: meterValuesTimer,
     });
-
-    // Tell the CMS the connector is now occupied (Preparing state)
-    import("./v16/messages/statusNotification").then(
-      ({ statusNotificationOcppMessage }) => {
-        vcp.send(
-          statusNotificationOcppMessage.request({
-            connectorId: startTransactionProps.connectorId,
-            errorCode: "NoError",
-            status: "Preparing",
-          }),
-        );
-      },
-    );
   }
 
   stopTransaction(transactionId: TransactionId) {

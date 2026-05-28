@@ -41,18 +41,18 @@ class RemoteStartTransactionOcppMessage extends OcppIncoming<
     }
     vcp.respond(this.response(call, { status: "Accepted" }));
     vcp.send(
+      statusNotificationOcppMessage.request({
+        connectorId: call.payload.connectorId,
+        errorCode: "NoError",
+        status: "Preparing",
+      }),
+    );
+    vcp.send(
       startTransactionOcppMessage.request({
         connectorId: call.payload.connectorId,
         idTag: call.payload.idTag,
         meterStart: 0,
         timestamp: new Date().toISOString(),
-      }),
-    );
-    vcp.send(
-      statusNotificationOcppMessage.request({
-        connectorId: call.payload.connectorId,
-        errorCode: "NoError",
-        status: "Charging",
       }),
     );
   };
