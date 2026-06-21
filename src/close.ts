@@ -35,3 +35,25 @@ export function registerVcp(vcp: VCP, main: () => Promise<VCP>) {
 export function deregisterVcp(vcp: VCP) {
   vcps.delete(vcp);
 }
+
+let isShuttingDown = false;
+async function handleShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info(`Received ${signal}. Shutting down gracefully...`);
+  
+  for (const [vcp] of vcps) {
+    try {
+      vcp.close();
+    } catch (err) {
+      logger.error(`Error closing VCP during shutdown: ${err}`);
+    }
+  }
+  
+  // Give a short delay to allow socket disconnect packets to be sent/received
+  await delay(500);
+  process.exit(0);
+}
+
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));

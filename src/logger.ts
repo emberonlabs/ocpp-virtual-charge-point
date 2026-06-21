@@ -1,4 +1,4 @@
-import { createLogger, format, transports, Transport } from "winston";
+import { createLogger, format, transports } from "winston";
 
 export interface LogInfo {
   timestamp: string;
@@ -10,23 +10,26 @@ export interface LogInfo {
 // A simple in-memory array to store the last 100 logs
 export let logBuffer: LogInfo[] = [];
 
-// Custom transport to handle our memory buffer
-class MemoryTransport extends Transport {
-  log(info: LogInfo, callback: () => void) {
-    setImmediate(() => {
-      this.emit('logged', info);
-    });
-    
-    logBuffer.push(info);
-    if (logBuffer.length > 100) {
-      logBuffer.shift();
-    }
-    
-    if (callback) {
-      callback();
-    }
+// Custom format to store logs in our memory buffer
+const memoryFormat = format((info) => {
+  // Store a clone of the log info to prevent mutate issues
+  const logEntry: LogInfo = {
+    timestamp: (info.timestamp as string) ?? new Date().toISOString(),
+    level: (info.level as string) ?? "",
+    message: (info.message as string) ?? "",
+    ...Object.fromEntries(
+      Object.entries(info).filter(
+        ([key]) => !["timestamp", "level", "message"].includes(key)
+      )
+    ),
+  };
+  
+  logBuffer.push(logEntry);
+  if (logBuffer.length > 100) {
+    logBuffer.shift();
   }
-}
+  return info;
+});
 
 export const clearLogBuffer = () => {
   console.log("🧹 Backend: Clearing log buffer...");
@@ -38,6 +41,7 @@ export const logger = createLogger({
     format.timestamp({
       format: "YYYY-MM-DD HH:mm:ss",
     }),
+    memoryFormat(),
   ),
   transports: [
     new transports.Console({
@@ -53,6 +57,5 @@ export const logger = createLogger({
       ),
       level: process.env.LOG_LEVEL ?? "info",
     }),
-    new MemoryTransport()
   ],
 });

@@ -5,7 +5,7 @@ import { LogViewer } from './components/LogViewer';
 import { LoginPage } from './components/LoginPage';
 import { ToastProvider } from './components/Toast';
 import { Zap, LogOut } from 'lucide-react';
-import { fetchStatus } from './services/api';
+import { fetchStatus, clearAuthToken } from './services/api';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -29,7 +29,7 @@ function App() {
   }, [isAuthenticated]);
 
   const handleLogout = () => {
-    sessionStorage.removeItem('vcp_authenticated');
+    clearAuthToken();
     setIsAuthenticated(false);
   };
 

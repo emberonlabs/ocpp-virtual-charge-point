@@ -1,7 +1,44 @@
 import axios from 'axios';
 
-const ADMIN_API_URL = (import.meta.env.VITE_ADMIN_API_URL as string) ?? 'http://localhost:9999';
+const ADMIN_API_URL = (import.meta.env.VITE_ADMIN_API_URL as string) ?? '/api';
 
+// ── Auth token management ──
+let authToken: string | null = sessionStorage.getItem('vcp_auth_token');
+
+export const setAuthToken = (token: string) => {
+  authToken = token;
+  sessionStorage.setItem('vcp_auth_token', token);
+};
+
+export const clearAuthToken = () => {
+  authToken = null;
+  sessionStorage.removeItem('vcp_auth_token');
+  sessionStorage.removeItem('vcp_authenticated');
+};
+
+export const getAuthToken = (): string | null => authToken;
+
+// ── Axios interceptor: attach Bearer token to every request ──
+axios.interceptors.request.use((config) => {
+  if (authToken && !config.url?.endsWith('/login')) {
+    config.headers.Authorization = `Bearer ${authToken}`;
+  }
+  return config;
+});
+
+// ── Axios response interceptor: handle 401 by clearing auth ──
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !error.config?.url?.endsWith('/login')) {
+      clearAuthToken();
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ── API Types ──
 export interface LogEntry {
   type: string;
   timestamp: string;
@@ -27,6 +64,13 @@ export interface VCPStatus {
   isConnected: boolean;
 }
 
+// ── Auth API ──
+export const login = async (username: string, password: string): Promise<{ token: string }> => {
+  const response = await axios.post(`${ADMIN_API_URL}/login`, { username, password });
+  return response.data;
+};
+
+// ── Protected APIs ──
 export const fetchStatus = async (): Promise<VCPStatus> => {
   const response = await axios.get(`${ADMIN_API_URL}/status`);
   return response.data;

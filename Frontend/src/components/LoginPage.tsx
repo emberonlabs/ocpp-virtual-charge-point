@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Zap, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { login, setAuthToken } from '../services/api';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -11,18 +12,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    if (username === 'admin' && password === 'secret') {
+    try {
+      const result = await login(username, password);
+      setAuthToken(result.token);
       sessionStorage.setItem('vcp_authenticated', 'true');
       onLogin();
-    } else {
-      setError('Invalid username or password');
+    } catch (err: any) {
+      const message = err.response?.status === 401
+        ? 'Invalid username or password'
+        : err.response?.data?.error || 'Unable to reach the server';
+      setError(message);
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 600);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,8 +108,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </div>
           </div>
 
-          <button type="submit" className="login-submit">
-            Sign In
+          <button type="submit" className="login-submit" disabled={isLoading}>
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 

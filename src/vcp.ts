@@ -1,4 +1,5 @@
 import * as util from "node:util";
+import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 
 import { serve, type ServerType } from "@hono/node-server";
@@ -57,8 +58,54 @@ export class VCP {
     this.messageHandler = resolveMessageHandler(vcpOptions.ocppVersion);
     if (vcpOptions.adminPort) {
       const adminApi = new Hono();
-      adminApi.use("/*", cors());
+      const corsOrigin = process.env.CORS_ORIGIN ?? "*";
+      adminApi.use("/*", cors({
+        origin: corsOrigin,
+        allowMethods: ["GET", "POST", "OPTIONS"],
+        allowHeaders: ["Content-Type", "Authorization"],
+      }));
+
+      // ── Authentication ──
+      const authUsername = process.env.AUTH_USERNAME ?? "admin";
+      const authPassword = process.env.AUTH_PASSWORD ?? "secret";
+      const validTokens = new Set<string>();
+
+      // Public: health check (for monitoring / load balancers)
       adminApi.get("/health", (c) => c.text("OK"));
+
+      // Public: login endpoint
+      adminApi.post("/login",
+        zValidator("json", z.object({
+          username: z.string(),
+          password: z.string(),
+        })),
+        (c) => {
+          const { username, password } = c.req.valid("json");
+          if (username === authUsername && password === authPassword) {
+            const token = randomUUID();
+            validTokens.add(token);
+            logger.info(`🔐 Login successful for user '${username}'`);
+            return c.json({ token });
+          }
+          logger.warn(`🔐 Failed login attempt for user '${username}'`);
+          return c.json({ error: "Invalid credentials" }, 401);
+        }
+      );
+
+      // Auth middleware — protects all routes below
+      adminApi.use("/*", async (c, next) => {
+        const authHeader = c.req.header("Authorization");
+        if (!authHeader?.startsWith("Bearer ")) {
+          return c.json({ error: "Unauthorized" }, 401);
+        }
+        const token = authHeader.slice(7);
+        if (!validTokens.has(token)) {
+          return c.json({ error: "Invalid or expired token" }, 401);
+        }
+        await next();
+      });
+
+      // ── Protected Routes ──
       adminApi.get("/status", (c) => c.json({
         endpoint: this.vcpOptions.endpoint,
         chargePointId: this.vcpOptions.chargePointId,

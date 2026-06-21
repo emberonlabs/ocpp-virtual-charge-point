@@ -184,6 +184,9 @@ export class TransactionManager {
       startedAt: new Date(),
       evseId: startTransactionProps.evseId,
       connectorId: startTransactionProps.connectorId,
+      currentPowerW: 0,
+      voltage: 230,
+      currentAmps: 0,
       meterValuesTimer: meterValuesTimer,
     });
   }
