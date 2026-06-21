@@ -130,10 +130,22 @@ export class VCP {
           return c.text("OK");
         },
       );
+      adminApi.post("/restart", async (c) => {
+        logger.info("🔄 Restart requested via Admin API");
+        // Disconnect WebSocket
+        this.disconnect();
+        // Reset transaction manager
+        this.transactionManager = new TransactionManager();
+        // Clear logs
+        clearLogBuffer();
+        logger.info("🔄 Backend restarted. Ready for new connection.");
+        return c.json({ status: "Restarted" });
+      });
       this.adminServer = serve({
         fetch: adminApi.fetch,
         port: vcpOptions.adminPort,
       });
+
     }
   }
 

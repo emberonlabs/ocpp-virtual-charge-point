@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Terminal, Trash2, AlertCircle } from 'lucide-react';
-import { fetchLogs, clearLogs, type LogEntry } from '../services/api';
+import { Terminal, Trash2, AlertCircle, RotateCcw } from 'lucide-react';
+import { fetchLogs, clearLogs, restartBackend, type LogEntry } from '../services/api';
 import { useToast } from './Toast';
 
 export const LogViewer: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [isTabVisible, setIsTabVisible] = useState(true);
+  const [isRestarting, setIsRestarting] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
   const lastLogRef = useRef<string>('');
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
 
   // Track tab visibility
   useEffect(() => {
@@ -65,6 +66,21 @@ export const LogViewer: React.FC = () => {
       showError('Failed to clear terminal logs');
     }
   };
+
+  const handleRestart = async () => {
+    setIsRestarting(true);
+    try {
+      await restartBackend();
+      setLogs([]);
+      lastLogRef.current = '';
+      showSuccess('Backend restarted successfully');
+    } catch (e) {
+      showError('Failed to restart backend');
+    } finally {
+      setIsRestarting(false);
+    }
+  };
+
 
   const formatMessageLog = (rawMsg: string) => {
     // Aggressive ANSI escape code removal
@@ -131,6 +147,29 @@ export const LogViewer: React.FC = () => {
             <Trash2 className="w-3 h-3" /> Clear
           </button>
           <button 
+            onClick={handleRestart}
+            disabled={isRestarting}
+            style={{
+              background: 'rgba(251, 146, 60, 0.1)',
+              border: '1px solid rgba(251, 146, 60, 0.3)',
+              color: '#fb923c',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.7rem',
+              cursor: isRestarting ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              transition: 'all 0.2s',
+              opacity: isRestarting ? 0.6 : 1
+            }}
+            title="Restart Backend"
+          >
+            <RotateCcw className="w-3 h-3" style={isRestarting ? { animation: 'spin 0.6s linear infinite' } : {}} /> Restart
+          </button>
+          <button 
             onClick={() => setAutoScroll(!autoScroll)}
             style={{
               background: autoScroll ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
@@ -150,6 +189,7 @@ export const LogViewer: React.FC = () => {
             Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
           </button>
         </div>
+
       </div>
       
       <div className="log-terminal" ref={terminalRef} style={{ flex: 1 }}>

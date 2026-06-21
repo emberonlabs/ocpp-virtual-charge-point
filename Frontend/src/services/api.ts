@@ -53,3 +53,7 @@ export const executeOcppAction = async (action: string, payload: Record<string, 
   });
   return response.data;
 };
+
+export const restartBackend = async (): Promise<void> => {
+  await axios.post(`${ADMIN_API_URL}/restart`);
+};

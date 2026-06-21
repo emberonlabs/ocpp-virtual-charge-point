@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(node -e \"require\\('./infrastructure/tcp_server'\\); require\\('./infrastructure/sensor_cursor'\\); console.log\\('MODULES LOAD OK'\\);\")"
+    ]
+  }
+}
